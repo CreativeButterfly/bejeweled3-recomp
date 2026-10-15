@@ -1,0 +1,11 @@
+# Game data and anything derived from it must never be committed.
+*.pak
+*.mo3
+*.zip
+Thumbs.db
+.DS_Store
+/data/
+/extracted/
+
+# Build output
+/target/

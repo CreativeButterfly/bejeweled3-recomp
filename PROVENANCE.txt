@@ -1,0 +1,9 @@
+# Every file in this folder goes into extra.pak, and every file must be listed here.
+# One line per file:   relative/path | where it came from | license
+#
+# Only list files that are original work for this project, generated for it, or
+# used with a clear license or the creator's permission. Nothing taken from the
+# paid game's files, from the modified/translated releases, or from ad content.
+#
+# Example (delete when real entries exist):
+# icons/mode_default.png | drawn for this project (SVG source in tools/) | project license
