@@ -1,0 +1,7 @@
+[package]
+name = "bej3core"
+version = "0.1.0"
+edition = "2021"
+description = "Match-3 game logic (no graphics, no I/O) and a terminal harness"
+
+[dependencies]

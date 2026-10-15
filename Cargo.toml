@@ -1,0 +1,3 @@
+[workspace]
+members = ["bej3pak", "bej3core"]
+resolver = "2"

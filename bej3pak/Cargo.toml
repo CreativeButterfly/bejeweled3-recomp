@@ -1,0 +1,7 @@
+[package]
+name = "bej3pak"
+version = "0.1.0"
+edition = "2021"
+description = "Reader for the PopCap-style PAK container, loading from a player's own game install"
+
+[dependencies]
