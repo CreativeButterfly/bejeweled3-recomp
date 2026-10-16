@@ -273,6 +273,13 @@ pub enum Event {
     Fall { moves: Vec<(Pos, Pos)> },
     /// New gems entered from the top.
     Fill { gems: Vec<(Pos, Gem)> },
+    /// A praise popup and voice line should play (triggered by cascades).
+    Praise(Praise),
+    /// The level bar filled. Play the level-complete sequence.
+    LevelComplete { level: u32 },
+    /// The board was replaced by a fresh one (after a level-up). Every gem on
+    /// the new board is listed so the renderer can fly them into place.
+    BoardReplaced { gems: Vec<(Pos, Gem)> },
     /// No legal move remains.
     NoMoves,
 }
@@ -713,11 +720,81 @@ pub fn has_move(bd: &Board, rules: &Rules) -> bool {
     find_move(bd, rules).is_some()
 }
 
-/// A game in progress. Scoring and level progress are not modelled yet.
+/// Praise tiers, shown as a text popup plus a voice line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Praise {
+    Good,
+    Excellent,
+    Awesome,
+    Spectacular,
+    Extraordinary,
+    Unbelievable,
+}
+
+/// Which praise a move earns, by how many cascades it caused.
+/// A cascade is a clear that happens because gems fell after an earlier clear.
+///
+/// PLACEHOLDER: the thresholds below are guesses, not measured from the real
+/// game. Replace them with observed values.
+#[derive(Clone, Debug)]
+pub struct PraiseRules {
+    /// (minimum cascades, praise), in ascending order.
+    pub thresholds: Vec<(u32, Praise)>,
+}
+
+impl Default for PraiseRules {
+    fn default() -> Self {
+        PraiseRules {
+            thresholds: vec![
+                (3, Praise::Good),
+                (4, Praise::Excellent),
+                (5, Praise::Awesome),
+                (6, Praise::Spectacular),
+                (7, Praise::Extraordinary),
+                (8, Praise::Unbelievable),
+            ],
+        }
+    }
+}
+
+impl PraiseRules {
+    pub fn praise_for(&self, cascades: u32) -> Option<Praise> {
+        self.thresholds
+            .iter()
+            .rev()
+            .find(|(min, _)| cascades >= *min)
+            .map(|(_, p)| *p)
+    }
+}
+
+/// Classic-mode level bar. `filled` runs from 0.0 (empty) to 1.0 (level up).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Progress {
+    pub level: u32,
+    pub filled: f64,
+}
+
+/// PLACEHOLDER: how fast the bar fills is not measured yet.
+#[derive(Clone, Debug)]
+pub struct ProgressRules {
+    /// Bar fill (0.0 to 1.0) per gem cleared.
+    pub fill_per_gem: f64,
+}
+
+impl Default for ProgressRules {
+    fn default() -> Self {
+        ProgressRules { fill_per_gem: 0.01 }
+    }
+}
+
+/// A classic-style game in progress. Scoring is not modelled yet.
 pub struct Game {
     pub board: Board,
     pub rng: Rng,
     pub rules: Rules,
+    pub progress_rules: ProgressRules,
+    pub praise_rules: PraiseRules,
+    pub progress: Progress,
     pub gems_cleared: u64,
     pub moves: u32,
     pub game_over: bool,
@@ -731,24 +808,62 @@ impl Game {
             board,
             rng,
             rules,
+            progress_rules: ProgressRules::default(),
+            praise_rules: PraiseRules::default(),
+            progress: Progress {
+                level: 1,
+                filled: 0.0,
+            },
             gems_cleared: 0,
             moves: 0,
             game_over: false,
         }
     }
 
+    /// Play one swap. Event order for a move: swap, clears and falls, then
+    /// praise (if earned), then either level-complete plus a replaced board,
+    /// or no-moves when the game ends.
     pub fn play(&mut self, a: Pos, b: Pos) -> Result<Vec<Event>, SwapError> {
         if self.game_over {
             return Err(SwapError::GameOver);
         }
         let mut events = try_swap(&mut self.board, &mut self.rng, &self.rules, a, b)?;
         self.moves += 1;
+
+        let mut cleared_now: u64 = 0;
+        let mut clears: u32 = 0;
         for e in &events {
             if let Event::Clear { cells } = e {
-                self.gems_cleared += cells.len() as u64;
+                cleared_now += cells.len() as u64;
+                clears += 1;
             }
         }
-        if !has_move(&self.board, &self.rules) {
+        self.gems_cleared += cleared_now;
+
+        if let Some(p) = self.praise_rules.praise_for(clears.saturating_sub(1)) {
+            events.push(Event::Praise(p));
+        }
+
+        // The bar is checked once the whole move has settled. Any overflow
+        // past a full bar is discarded (assumption, see NOTES.md).
+        self.progress.filled += self.progress_rules.fill_per_gem * cleared_now as f64;
+        if self.progress.filled >= 1.0 {
+            events.push(Event::LevelComplete {
+                level: self.progress.level,
+            });
+            self.progress.level += 1;
+            self.progress.filled = 0.0;
+            self.board = Board::random(&mut self.rng, &self.rules);
+            let mut gems: Vec<(Pos, Gem)> = Vec::new();
+            for r in 0..H {
+                for c in 0..W {
+                    if let Some(g) = self.board.cells[r][c] {
+                        gems.push(((r, c), g));
+                    }
+                }
+            }
+            events.push(Event::BoardReplaced { gems });
+        } else if !has_move(&self.board, &self.rules) {
             self.game_over = true;
             events.push(Event::NoMoves);
         }
@@ -985,6 +1100,66 @@ mod tests {
             assert!(has_move(&b, &rules));
             assert_eq!(b, Board::random(&mut Rng::new(seed), &rules));
         }
+    }
+
+    #[test]
+    fn praise_follows_the_threshold_table() {
+        let p = PraiseRules::default();
+        assert_eq!(p.praise_for(0), None);
+        assert_eq!(p.praise_for(2), None);
+        assert_eq!(p.praise_for(3), Some(Praise::Good));
+        assert_eq!(p.praise_for(5), Some(Praise::Awesome));
+        assert_eq!(p.praise_for(99), Some(Praise::Unbelievable));
+    }
+
+    /// A game whose board has one obvious legal move at (0,2) <-> (0,3).
+    fn game_with_one_move() -> Game {
+        let mut g = Game::new(1, Rules::default());
+        g.board = base();
+        red(&mut g.board, &[(0, 0), (0, 1), (0, 3)]);
+        g
+    }
+
+    #[test]
+    fn bar_fills_in_proportion_to_gems_cleared() {
+        let mut g = game_with_one_move();
+        g.progress_rules.fill_per_gem = 0.0001; // too small to level up
+        g.play((0, 2), (0, 3)).unwrap();
+        assert!(g.gems_cleared >= 3);
+        let expected = g.gems_cleared as f64 * 0.0001;
+        assert!((g.progress.filled - expected).abs() < 1e-9);
+        assert_eq!(g.progress.level, 1);
+    }
+
+    #[test]
+    fn full_bar_completes_the_level_and_replaces_the_board() {
+        let mut g = game_with_one_move();
+        g.progress_rules.fill_per_gem = 1.0; // any clear fills the bar
+        let events = g.play((0, 2), (0, 3)).unwrap();
+
+        let done = events
+            .iter()
+            .position(|e| matches!(e, Event::LevelComplete { level: 1 }))
+            .expect("level complete event");
+        let replaced = events
+            .iter()
+            .position(|e| matches!(e, Event::BoardReplaced { .. }))
+            .expect("board replaced event");
+        assert!(done < replaced);
+        assert!(!events.contains(&Event::NoMoves));
+
+        assert_eq!(g.progress.level, 2);
+        assert_eq!(g.progress.filled, 0.0);
+        assert!(find_groups(&g.board, &g.rules, &[]).is_empty());
+        assert!(has_move(&g.board, &g.rules));
+        assert!(!g.game_over);
+    }
+
+    #[test]
+    fn moves_are_rejected_once_the_game_is_over() {
+        let mut g = Game::new(1, Rules::default());
+        g.game_over = true;
+        assert_eq!(g.play((0, 0), (0, 1)), Err(SwapError::GameOver));
     }
 
     #[test]

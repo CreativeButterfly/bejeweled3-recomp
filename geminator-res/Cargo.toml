@@ -1,0 +1,11 @@
+[package]
+name = "geminator-res"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Parsers for the resource manifest and font descriptors found in the game's PAK"
+
+[dependencies]
+
+[dev-dependencies]
+geminator-pak = { path = "../geminator-pak" }

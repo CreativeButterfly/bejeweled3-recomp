@@ -1,4 +1,4 @@
-use bej3core::{Event, Game, Rules};
+use geminator_core::{Event, Game, Rules};
 use std::io::{self, BufRead, Write};
 
 fn describe(e: &Event) -> String {
@@ -9,8 +9,17 @@ fn describe(e: &Event) -> String {
         Event::Trigger { pos, special } => format!("{special:?} fires at {pos:?}"),
         Event::Fall { moves } => format!("{} gems fall", moves.len()),
         Event::Fill { gems } => format!("{} new gems drop in", gems.len()),
-        Event::NoMoves => "no legal moves left".to_string(),
+        Event::Praise(p) => format!("praise: {p:?}!"),
+        Event::LevelComplete { level } => format!("LEVEL {level} COMPLETE"),
+        Event::BoardReplaced { gems } => format!("new board arrives ({} gems)", gems.len()),
+        Event::NoMoves => "no more moves!".to_string(),
     }
+}
+
+fn bar(filled: f64) -> String {
+    let width = 30usize;
+    let n = ((filled.clamp(0.0, 1.0)) * width as f64).round() as usize;
+    format!("[{}{}]", "#".repeat(n), "-".repeat(width - n))
 }
 
 fn main() {
@@ -24,14 +33,21 @@ fn main() {
     println!("type: row col row col   (0-based) to swap two neighbors");
     println!("      h  for a hint,  q  to quit");
     println!("markers: * flame  + star  # supernova  @@ hypercube");
+    println!("note: level bar speed and praise thresholds are placeholders");
 
     let stdin = io::stdin();
     loop {
         println!();
         println!("{}", game.board.render());
-        println!("moves {}   gems cleared {}", game.moves, game.gems_cleared);
+        println!(
+            "level {}  {}  moves {}  gems cleared {}",
+            game.progress.level,
+            bar(game.progress.filled),
+            game.moves,
+            game.gems_cleared
+        );
         if game.game_over {
-            println!("no moves left: game over");
+            println!("game over");
             break;
         }
         print!("> ");

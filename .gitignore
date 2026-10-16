@@ -9,3 +9,8 @@ Thumbs.db
 
 # Build output
 /target/
+
+# Network captures can contain account tokens and other private data.
+*.pcap
+*.pcapng
+*.har

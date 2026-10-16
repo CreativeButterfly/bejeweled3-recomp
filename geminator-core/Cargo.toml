@@ -1,7 +1,8 @@
 [package]
-name = "bej3core"
+name = "geminator-core"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 description = "Match-3 game logic (no graphics, no I/O) and a terminal harness"
 
 [dependencies]

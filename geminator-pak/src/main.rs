@@ -1,4 +1,4 @@
-use bej3pak::{write_pak, Pak};
+use geminator_pak::{write_pak, Pak};
 use std::collections::HashSet;
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -7,10 +7,10 @@ use std::process::ExitCode;
 fn usage() -> ExitCode {
     eprintln!(
         "usage:
-  bej3pak info <main.pak>              summary of the archive
-  bej3pak list <main.pak>              size and path of every entry
-  bej3pak cat  <main.pak> <path>       write one entry to stdout (redirect it)
-  bej3pak pack <dir> <out.pak>         build a PAK from a folder (needs <dir>/PROVENANCE.txt)"
+  geminator-pak info <main.pak>              summary of the archive
+  geminator-pak list <main.pak>              size and path of every entry
+  geminator-pak cat  <main.pak> <path>       write one entry to stdout (redirect it)
+  geminator-pak pack <dir> <out.pak>         build a PAK from a folder (needs <dir>/PROVENANCE.txt)"
     );
     ExitCode::from(2)
 }

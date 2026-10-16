@@ -334,7 +334,7 @@ mod tests {
             ("images\\a.png", b"hello"),
             ("sounds\\b.ogg", b"world!!"),
         ]);
-        let path = std::env::temp_dir().join("bej3pak_roundtrip_test.pak");
+        let path = std::env::temp_dir().join("geminator-pak_roundtrip_test.pak");
         std::fs::write(&path, bytes).unwrap();
 
         let pak = Pak::open(&path).unwrap();
@@ -353,7 +353,7 @@ mod tests {
             ("music/empty.bin".to_string(), Vec::new()),
             ("fonts\\bomb.txt".to_string(), b"0123456789".to_vec()),
         ];
-        let path = std::env::temp_dir().join("bej3pak_write_test.pak");
+        let path = std::env::temp_dir().join("geminator-pak_write_test.pak");
         let file = File::create(&path).unwrap();
         write_pak(file, &files).unwrap();
 
@@ -377,7 +377,7 @@ mod tests {
 
     #[test]
     fn rejects_non_pak() {
-        let path = std::env::temp_dir().join("bej3pak_bad_magic_test.pak");
+        let path = std::env::temp_dir().join("geminator-pak_bad_magic_test.pak");
         std::fs::write(&path, [0u8; 32]).unwrap();
         assert!(matches!(Pak::open(&path), Err(PakError::BadMagic(_))));
         let _ = std::fs::remove_file(&path);

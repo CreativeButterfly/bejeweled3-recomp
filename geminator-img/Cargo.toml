@@ -1,0 +1,11 @@
+[package]
+name = "geminator-img"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Load sprites from a PAK: JPEG 2000 color image plus a paired grayscale GIF alpha mask"
+
+[dependencies]
+geminator-pak = { path = "../geminator-pak" }
+hayro-jpeg2000 = "0.4"
+gif = "0.13"

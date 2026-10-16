@@ -1,7 +1,8 @@
 [package]
-name = "bej3pak"
+name = "geminator-pak"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 description = "Reader for the PopCap-style PAK container, loading from a player's own game install"
 
 [dependencies]
