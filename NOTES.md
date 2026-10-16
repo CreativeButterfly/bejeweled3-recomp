@@ -93,6 +93,11 @@ Steam or GOG. The repository ships no game data.
   rendering). My first check missed them because it did not try the `_.gif` name. They are not
   leftovers from another game and not loose files. All 189 sounds, 64 animations and 118
   particle effects resolve too.
+- Aliases: 59 `Font` entries, all in the shared `Init_Common` and `LoadingThread_Common` groups
+  (no `res`), have a path of the form `!ref:OTHER_ID`, meaning "whatever OTHER_ID is at the
+  current resolution". One target (`FONT_FLAREGOTHIC28`) has its 1200 definition in a shared
+  group, so lookups by resolution fall back to groups without one. `Manifest::resolve` follows
+  aliases; `Manifest::find` does the group fallback.
 - Plan: a loader that looks resources up by ID and resolution, like the original, so mods can
   add or override IDs.
 
@@ -184,7 +189,8 @@ crossing (star) or the middle of the longest line.
 
 - `geminator-pak`, `geminator-core` and `geminator-img` compiled and their tests passed on the
   owner's machine (sprite test: 5,153 of 5,153 images). `geminator-res` was written later and
-  has not been compiled yet. Run
+  its unit tests pass (11); the manifest alias handling was added after the
+  first real-data run and has not been run yet. Run
   `cargo test` first and fix any compile errors before anything else.
 - No renderer yet. Next: run the sprite test on a real PAK, then the Vulkan renderer that
   plays back `geminator-core` events, then audio (Ogg voice and sound effects, `.mo3` music).

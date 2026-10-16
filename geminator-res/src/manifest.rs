@@ -9,6 +9,13 @@
 //! `CompositeResources` groups. Inside a group are the resource elements:
 //! `Image`, `Sound`, `Font`, `PIEffect`, `PopAnim`, `RenderEffect`, `File`.
 //! The same resource ID is usually defined once per resolution group.
+//!
+//! Aliases: some entries (in the shared `Init_Common` and `LoadingThread_Common`
+//! groups, which have no `res`) have a path of the form `!ref:OTHER_ID`. That
+//! means "use whatever `OTHER_ID` is at the current resolution". Use
+//! [`Manifest::resolve`] to follow them. A resource ID may also be defined only
+//! in a shared group for one resolution, so lookups with a resolution fall back
+//! to groups that have none.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -90,6 +97,11 @@ impl Resource {
     /// `origpath`: this entry reuses another image's file.
     pub fn alias_of(&self) -> Option<&str> {
         self.attr("origpath")
+    }
+
+    /// For `!ref:OTHER_ID` paths, the ID this entry points to.
+    pub fn reference(&self) -> Option<&str> {
+        self.path()?.strip_prefix("!ref:")
     }
 }
 
@@ -320,14 +332,38 @@ impl Manifest {
             .flat_map(|g| g.resources.iter().map(move |r| (g, r)))
     }
 
-    /// Look a resource up by ID. With `res` set (for example `Some("1200")`)
-    /// only groups of that resolution set are searched.
-    pub fn find(&self, id: &str, res: Option<&str>) -> Option<&Resource> {
+    fn find_where(&self, id: &str, keep: impl Fn(&Group) -> bool) -> Option<&Resource> {
         self.groups
             .iter()
-            .filter(|g| res.is_none() || g.res() == res)
+            .filter(|g| keep(g))
             .flat_map(|g| g.resources.iter())
             .find(|r| r.id() == id)
+    }
+
+    /// Look a resource up by ID. With `res` set (for example `Some("1200")`),
+    /// groups of that resolution set are searched first, then groups that have
+    /// no resolution (shared groups). With `None`, the first definition wins.
+    pub fn find(&self, id: &str, res: Option<&str>) -> Option<&Resource> {
+        match res {
+            None => self.find_where(id, |_| true),
+            Some(want) => self
+                .find_where(id, |g| g.res() == Some(want))
+                .or_else(|| self.find_where(id, |g| g.res().is_none())),
+        }
+    }
+
+    /// Like [`Manifest::find`], but follows `!ref:` aliases to the final
+    /// resource. `None` when the ID or any target is missing, or when the
+    /// aliases form a loop.
+    pub fn resolve(&self, id: &str, res: Option<&str>) -> Option<&Resource> {
+        let mut current = self.find(id, res)?;
+        for _ in 0..8 {
+            match current.reference() {
+                Some(target) => current = self.find(target, res)?,
+                None => return Some(current),
+            }
+        }
+        None
     }
 }
 
@@ -412,6 +448,53 @@ mod tests {
         let g = m.groups.iter().find(|g| g.id() == "2DOnly").unwrap();
         assert_eq!(g.res(), None);
         assert!(g.resources.is_empty());
+    }
+
+    const REFS: &str = r#"<ResourceManifest version=2>
+  <Resources id=600_Init res=600>
+    <Font id=FONT_REAL path="fonts\600\real.txt" />
+  </Resources>
+  <Resources id=1200_Init res=1200>
+  </Resources>
+  <Resources id=Init_Common>
+    <Font id=FONT_REAL path="fonts\1200\real.txt" />
+    <Font id=FONT_ALIAS path="!ref:FONT_REAL" />
+    <Font id=FONT_LOOP_A path="!ref:FONT_LOOP_B" />
+    <Font id=FONT_LOOP_B path="!ref:FONT_LOOP_A" />
+    <Font id=FONT_DANGLING path="!ref:NOPE" />
+  </Resources>
+</ResourceManifest>"#;
+
+    #[test]
+    fn aliases_resolve_at_the_requested_resolution() {
+        let m = Manifest::parse(REFS).unwrap();
+        let alias = m.find("FONT_ALIAS", Some("600")).unwrap();
+        assert_eq!(alias.reference(), Some("FONT_REAL"));
+
+        // 600 has its own definition, so it wins over the shared one.
+        assert_eq!(
+            m.resolve("FONT_ALIAS", Some("600")).unwrap().path(),
+            Some("fonts\\600\\real.txt")
+        );
+        // 1200 has no definition of its own, so the shared group is used.
+        assert_eq!(
+            m.resolve("FONT_ALIAS", Some("1200")).unwrap().path(),
+            Some("fonts\\1200\\real.txt")
+        );
+        assert!(m.resolve("FONT_ALIAS", None).is_some());
+        // A plain resource resolves to itself.
+        assert_eq!(
+            m.resolve("FONT_REAL", Some("600")).unwrap().path(),
+            Some("fonts\\600\\real.txt")
+        );
+    }
+
+    #[test]
+    fn loops_and_dangling_aliases_give_none() {
+        let m = Manifest::parse(REFS).unwrap();
+        assert!(m.resolve("FONT_LOOP_A", Some("600")).is_none());
+        assert!(m.resolve("FONT_DANGLING", Some("600")).is_none());
+        assert!(m.resolve("MISSING", None).is_none());
     }
 
     #[test]

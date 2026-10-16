@@ -32,10 +32,8 @@ fn manifest_parses_and_every_path_resolves() {
     );
     assert!(images > 6000, "expected thousands of images, got {images}");
 
-    let mut missing: Vec<String> = Vec::new();
-    for (_, r) in m.iter() {
-        let Some(path) = r.path() else { continue };
-        let found = match r.kind {
+    let exists = |kind: &ResourceKind, path: &str| -> bool {
+        match kind {
             ResourceKind::Image => {
                 ["jp2", "gif", "png", "jpg"]
                     .iter()
@@ -49,11 +47,27 @@ fn manifest_parses_and_every_path_resolves() {
             | ResourceKind::RenderEffect => pak.find(path).is_some(),
             // `File` entries include loose files that live outside the PAK.
             _ => true,
-        };
-        if !found {
+        }
+    };
+
+    let mut missing: Vec<String> = Vec::new();
+    let mut aliases = 0usize;
+    for (_, r) in m.iter() {
+        let Some(path) = r.path() else { continue };
+        if r.reference().is_some() {
+            // An alias: it must resolve to a real file at every resolution set.
+            aliases += 1;
+            for res in ["1200", "768", "600"] {
+                match m.resolve(r.id(), Some(res)) {
+                    Some(t) if exists(&t.kind, t.path().unwrap_or("")) => {}
+                    _ => missing.push(format!("{} (alias, res {res})", r.id())),
+                }
+            }
+        } else if !exists(&r.kind, path) {
             missing.push(path.to_string());
         }
     }
+    println!("aliases followed: {aliases}");
     assert!(
         missing.is_empty(),
         "{} paths do not resolve, first: {:?}",
