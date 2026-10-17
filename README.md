@@ -18,6 +18,8 @@ for this project and is listed, with its origin and license, in `extra/PROVENANC
 | `geminator-img/` | Loads sprites from a PAK (JPEG 2000 color plus a paired GIF alpha mask) |
 | `geminator-res/` | Parsers for the resource manifest (`resources.xml`), font descriptors and `.p3d` 3D models |
 | `extra/` | Original assets that go into `extra.pak`, each listed in `PROVENANCE.txt` |
+| `tools/` | `gem_tools.py`: standalone Python analysis of a PAK (the prototypes the Rust was checked against) |
+| `HANDOVER.md` | Start here: status, ground rules, next steps, how to continue |
 | `NOTES.md` | Design decisions, file-format findings, rules, open questions |
 
 ## Try it

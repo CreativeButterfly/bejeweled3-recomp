@@ -1,4 +1,6 @@
-# Project notes (read this first)
+# Project notes
+
+Start with `HANDOVER.md` (status, rules, next steps), then read this file for the details.
 
 Handoff notes for anyone, human or Claude, picking this project up. Nothing here comes from
 the game's code. Format findings come from looking at the owner's own game files; rules come
@@ -263,6 +265,26 @@ crossing (star) or the middle of the longest line.
 - Confirmed by the owner: the blue gem is Classic, the yin-yang is Zen and the card fan is Poker.
   So the wheel holds Classic, Zen, Lightning, Poker and the quest types (Diamond Mine,
   Butterflies, Ice Storm), plus the crown entry.
+
+## Bomb gems (for match bomb and time bomb; from the manifest, names and sizes only)
+
+- Art already in the Steam PAK: `IMAGE_BOMBGEMS` (2261x324, 7 columns, one ring per gem color,
+  draw offset 26,29), `IMAGE_BOMBGLOWS_GLOW` (1421x203, 7 columns), `IMAGE_BOMBGLOWS_DANGERGLOW`
+  (1344x192, 7 columns, probably for low counts), `IMAGE_COUNTDOWNSHARDS` (1680x84, 20 frames
+  of 84 px, probably the break-up when a countdown gem is destroyed), `IMAGE_ANGRYBOMB`
+  (384x384) and a `COUNTDOWNBAR` particle effect. The time bomb quest has its own menu art
+  (`icon_time_bomb`, `questmenu/stratamax` sheet with 3 rows).
+- Sounds: `bomb_appears`, `bomb_explode`, `countdown_warning`, `gem_countdown_destroyed`,
+  `timebombexplode`.
+- Not bomb gems: `dangersnow_*` and `fbomb*` are Ice Storm effects (ice chunks, snowflakes).
+- The number font: the community-modified PAK added a special bomb font, but the Steam PAK has
+  none by that name. The numbers probably use an existing font such as `flaregothic55`;
+  confirm by eye once a bomb gem is rendered. Nothing from the modified PAK is needed.
+- Plan for the core: an optional countdown on a gem; match bomb counts down per move, time bomb
+  per second; low counts use the danger glow and warning sound; reaching zero explodes the bomb
+  and ends the game. Open (ask the owner to observe): what happens when a bomb gem is matched
+  (defused and removed?), when new bombs appear, starting numbers (the screenshot showed 15, 13
+  and 7).
 
 ## Open questions
 
