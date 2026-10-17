@@ -3,7 +3,7 @@
 //!   GEMINATOR_PAK=/path/to/main.pak cargo test --release -p geminator-res -- --ignored --nocapture
 
 use geminator_pak::Pak;
-use geminator_res::{Font, Manifest, ResourceKind};
+use geminator_res::{Font, Manifest, Model, ResourceKind};
 
 fn open() -> Pak {
     let path = std::env::var("GEMINATOR_PAK").expect("set GEMINATOR_PAK to your main.pak");
@@ -115,4 +115,34 @@ fn every_font_descriptor_parses_and_is_consistent() {
     }
     println!("parsed {parsed} font descriptors");
     assert!(parsed > 60, "expected dozens of descriptors, got {parsed}");
+}
+
+#[test]
+#[ignore = "needs a real main.pak; set GEMINATOR_PAK"]
+fn models_parse_and_their_textures_exist() {
+    let pak = open();
+    let mut parsed = 0usize;
+    let mut not_parsed: Vec<String> = Vec::new();
+    for e in pak.entries() {
+        if !e.name.to_ascii_lowercase().ends_with(".p3d") {
+            continue;
+        }
+        let bytes = pak.read_entry(e).unwrap();
+        match Model::parse(&bytes) {
+            Ok(m) => {
+                parsed += 1;
+                if let Some(stem) = m.texture_stem() {
+                    let base = format!("images\\1200\\tex\\{stem}");
+                    let found = ["jp2", "gif", "png", "jpg"]
+                        .iter()
+                        .any(|ext| pak.find(&format!("{base}.{ext}")).is_some())
+                        || pak.find(&format!("{base}_.gif")).is_some();
+                    assert!(found, "{}: texture {stem} not found", e.name);
+                }
+            }
+            Err(err) => not_parsed.push(format!("{}: {err}", e.name)),
+        }
+    }
+    println!("parsed {parsed} models; not parsed: {not_parsed:?}");
+    assert!(parsed >= 10, "expected at least 10 models to parse, got {parsed}");
 }

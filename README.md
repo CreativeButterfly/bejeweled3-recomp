@@ -16,7 +16,7 @@ for this project and is listed, with its origin and license, in `extra/PROVENANC
 | `geminator-pak/` | Reader/writer for the game's PAK container, plus a small command-line tool |
 | `geminator-core/` | Game logic with no graphics, plus a terminal harness to play it as text |
 | `geminator-img/` | Loads sprites from a PAK (JPEG 2000 color plus a paired GIF alpha mask) |
-| `geminator-res/` | Parsers for the resource manifest (`resources.xml`) and font descriptors |
+| `geminator-res/` | Parsers for the resource manifest (`resources.xml`), font descriptors and `.p3d` 3D models |
 | `extra/` | Original assets that go into `extra.pak`, each listed in `PROVENANCE.txt` |
 | `NOTES.md` | Design decisions, file-format findings, rules, open questions |
 

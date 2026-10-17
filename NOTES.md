@@ -120,6 +120,50 @@ Steam or GOG. The repository ships no game data.
   PAK: `manifest_parses_and_every_path_resolves` and
   `every_font_descriptor_parses_and_is_consistent`.
 
+## Gem and UI art (from the manifest, 1200 set; metadata only, images not yet viewed)
+
+- Gems are 2D sprite sheets per color: `IMAGE_GEMS_<COLOR>` is 640x512 with a 5x4 grid (20 frames
+  of 128x128, probably a rotation or shine animation). Matching sets: `GemsNormal` (same
+  layout, probably normal maps for lighting), `GemsShadow` (shadow sheets; two are odd sizes,
+  Purple 640x536 and Orange 520x640 with a 4x5 grid, so always use the manifest `cols`/`rows`
+  and never assume 128), `Gems_80px` (400x320, 5x4 of 80px), `gems_shadowed` (896x128, 7
+  frames, one per color), `gemshard` (1200x30, 40 frames of 30px), `bombgems` (2261x324, 7
+  columns, bomb-ring art per color; draw offset 26,29).
+- Board position and cell size are NOT in `properties/defaultUIConstants.xml`. That file only
+  holds dialog constants (options sliders, zen options, game-over dialog offsets, a few
+  dialog rectangles) and mentions modes such as Lightning, Ice Storm and Poker. Take board
+  layout from observation and put it in our own layout data file.
+
+## 3D models (`.p3d`, verified on 10 of 12 files)
+
+- Layout: magic `00 EF BE 3D`, u32 version (1 for gems and the tunnel, 2 for the board), then
+  counted lists of shape names, materials (version 2 puts one extra byte before each material
+  string) and key/value properties (`texture0.fileName`), then mesh blocks: u16 flags, u32
+  vertex format (always 338), u16 vertex count, 36-byte vertices (position 3 f32, normal 3 f32,
+  color 4 u8, uv 2 f32), u16 triangle count, then 3 u16 indices per triangle. Strings are a u16
+  length plus Latin-1 bytes. Full layout in `geminator-res/src/p3d.rs`.
+- Checked: every byte is accounted for, all indices are in range, normals are unit length. A
+  flat-shaded render of the seven gem meshes (for my own review, not saved in the repo) shows
+  the expected faceted gem shapes.
+- Sizes: gems 30 to 180 vertices (4 to 116 triangles; the round white gem is the largest),
+  board 455 vertices and 776 triangles, `warptube` 1,953 vertices and 3,720 triangles,
+  `warptube_cap` 93 vertices.
+- Textures: the property says `.png` or `.psd`, but the image is at
+  `images/<size>/tex/<name without extension>` as `.jp2` (some with a `_.gif` mask); the tunnel
+  uses `warp_lin.gif`, a plain GIF.
+- `.p3danim` (partly understood, NOT decoded): all five hyperspace files are 917,364 bytes and
+  89 to 99 percent byte-identical to each other, so they are variants with the same structure.
+  They start with two u32 values (3, then 310; 310 may be the frame count) followed by a table
+  of (id, count) pairs: ids run 1 to 65 (about 64 board gems plus a few extra objects, probably
+  a camera) with counts of roughly 182 to 297 (likely keyframes per object). After the table
+  the data turns into floats (a pair of zeros, then values such as 1.0). A simple "counts times a
+  fixed key size equals the rest of the file" test did not fit, so the record layout is still
+  unknown. Do not rely on this yet.
+- Not parsed yet: `temple.p3d` and `questtemple.p3d` (a different header, probably several
+  meshes). The `.p3danim` animation files are the next unknown (917,364 bytes each for the
+  five hyperspace animations).
+- Run the ignored test `models_parse_and_their_textures_exist` against your PAK.
+
 ## Rules implemented in geminator-core (from the owner's description)
 
 Line of 3: clear. Line of 4: flame gem (clears 3x3 when matched). Line of 5: hypercube
@@ -134,9 +178,30 @@ crossing (star) or the middle of the longest line.
 
 - Matches fill a progress bar that runs left to right under the board. When it fills, the
   level is complete.
-- Level complete: the "Level Complete" voice plays, then the old board's gems smash through
-  the board and fly through a vortex, then gems fly in at random and settle into place on the
-  next board. The PAK has matching assets by name: `hyperspace_main_*` animations and
+- Level complete, in order: (1) the "Level Complete" text and voice appear over the full board
+  with the bar full; (2) the gems smash through the board toward the camera (there are
+  `hyperspace_shatter` sounds); (3) they fly through a vortex (a rainbow tunnel with large 3D
+  gems tumbling in perspective); (4) they fly into place at random positions on the new board.
+  Step 4 is presentation only: the core hands over the new board in `BoardReplaced` and the
+  renderer picks random flight paths and arrival order. Every gem must end on its correct cell,
+  and the board becomes playable once they have all landed.
+- Assets for the vortex (names and sizes only): `warptube.p3d` and `warptube_cap.p3d` (tunnel
+  model), `hyperspace.jpg` and `hyperspace_initial.jpg` per size set (tunnel texture), 3D gem
+  models `gem<Color>.p3d`, five `hyperspace_*.p3danim` animation files of identical size
+  (917,364 bytes each: main 0 to 3 and zen 0), `hyperspace.ogg`, `hyperspace_gem_land_*` sounds
+  and a `firegem_hyperspace` particle effect. `.p3d` files start with a magic number and
+  version and contain named records (shape and material names, texture file names such as
+  `red_gem.png`); vertex data is not decoded yet.
+- Level-up sounds (owner's description plus file lengths, not yet listened to): the smash has its
+  own effect (`hyperspace_shatter_1` 1.8 s and `_2` 2.1 s, `_zen` 3.3 s for Zen); the vortex has
+  `hyperspace.ogg` (6.7 s); and the landing is a cascade of one sound at different pitches:
+  `hyperspace_gem_land_1` to `_7` (0.36 s down to 0.30 s, so probably rising pitch; confirm by
+  ear), with longer Zen versions `hyperspace_gem_land_zen_1` to `_7` (about 1.3 to 1.6 s). Plan:
+  play the next step of the 7-step ladder as each gem lands, wrapping around. The voice line is
+  `voice_levelcomplete`. All are 44.1 kHz stereo Ogg Vorbis.
+- Staging: 2D renderer first, then a placeholder level-up (text, gems scaling outward, a
+  procedural swirl, the board panel breaking into shards), then decode `.p3d` and `.p3danim`
+  and render the real tunnel and gems with our own shaders. The PAK has matching assets by name: `hyperspace_main_*` animations and
   `hyperspace_shatter_*` / `hyperspace_gem_land_*` sounds (names only, not yet inspected).
 - No legal move left: "No more moves!" voice, then game over (classic uses this in place of
   "Time's up!").
@@ -172,6 +237,33 @@ crossing (star) or the middle of the longest line.
 - Network captures (netstat, Wireshark) are fine for debugging our own client and server.
   Keep captures out of the repo (`.gitignore` covers pcap files).
 
+## Mode wheel (PS3 layout, from a screenshot of the mode-select screen)
+
+- After PLAY, the modes sit on a ring of faceted crystal spheres, each with an icon inside. The
+  selected mode is the largest and sits top center, with a glow behind its icon. In the
+  screenshot, eight crystals: the selected one (Diamond Mine, pickaxe), a snowflake (Ice
+  Storm), a butterfly (Butterflies), a card fan (Poker), a yin-yang (Zen), a lightning bolt
+  (Lightning), a gold crown with laurel and "100%", and a blue triangle gem (the blue gem is
+  Classic, as the owner confirmed; the crown is unconfirmed; the owner assumes the crown with "100%" is a completed quest mode, so a wheel
+  entry can show a completion state, which means the profile must expose quest completion).
+  Upper crystals are bigger and in front; the lower ones are smaller and partly
+  hidden behind them, as on a tilted ring.
+- Around it: the mode title at the top in a large outlined font, a one-line description under
+  the ring, and button prompts in the bottom corners (select on the left, back on the right).
+  We draw our own prompts for the active input device.
+- The three quest types (Diamond Mine, Butterflies, Ice Storm) are separate entries on the
+  wheel, so the wheel is a flat list of modes. Each entry is data: id, title, description,
+  icon resource, tint. Ring positions come from the entry's offset from the selected one, so
+  any number of modes works; with many, show the nearest few and scroll.
+- Art found by name in the PAK: `crystalball` (+ mask), `crystalball glow` and `crystalball
+  shadow` (the sphere), and `questmenu/icon_*` quest icons: alchemy, avalanche, balance,
+  buried_treasure, butterfly, gold_rush, ice_storm, poker_copy, sandstorm, stratamax,
+  time_bomb, wall_blast. Icons for Classic, Zen and Lightning were not found by that search and
+  the pickaxe is unconfirmed. Not yet viewed.
+- Confirmed by the owner: the blue gem is Classic, the yin-yang is Zen and the card fan is Poker.
+  So the wheel holds Classic, Zen, Lightning, Poker and the quest types (Diamond Mine,
+  Butterflies, Ice Storm), plus the crown entry.
+
 ## Open questions
 
 - Hypercube caught in another special's blast: currently just cleared.
@@ -189,8 +281,8 @@ crossing (star) or the middle of the longest line.
 
 - `geminator-pak`, `geminator-core` and `geminator-img` compiled and their tests passed on the
   owner's machine (sprite test: 5,153 of 5,153 images). `geminator-res` was written later and
-  its unit tests pass (11); the manifest alias handling was added after the
-  first real-data run and has not been run yet. Run
+  its unit tests (13) and both real-data tests pass on the owner's machine; the `.p3d` parser
+  was added afterwards and has not been compiled yet. Run
   `cargo test` first and fix any compile errors before anything else.
 - No renderer yet. Next: run the sprite test on a real PAK, then the Vulkan renderer that
   plays back `geminator-core` events, then audio (Ogg voice and sound effects, `.mo3` music).
